@@ -9,9 +9,10 @@ This repository contains a Dockerfile for monitoring an NTP server and sending T
 docker build -t ntp-monitor .
 ```
 
-### Rund the Docker Image
+### Run the Docker Image
 
-```docker run -d \
+```bash
+docker run -d \
   --restart unless-stopped \
   -e NTP_SERVER="your_ntp_server" \
   -e OFFSET_THRESHOLD="0.5" \
