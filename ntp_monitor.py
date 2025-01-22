@@ -14,8 +14,9 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))  # in seconds
 
-# Track server unreachable status
+# Track server unreachable and offset out-of-range status
 server_unreachable = False
+last_offset_out_of_range = False
 
 def send_telegram_alert(message):
     """Send alert to Telegram."""
@@ -34,7 +35,7 @@ def send_telegram_alert(message):
 
 def check_ntp_server():
     """Check the NTP server and report status."""
-    global server_unreachable
+    global server_unreachable, last_offset_out_of_range
 
     try:
         client = ntplib.NTPClient()
@@ -44,11 +45,21 @@ def check_ntp_server():
 
         # Check if the offset is within the acceptable range
         if abs(offset) > OFFSET_THRESHOLD:
-            message = (
-                f"⚠️ Alert: NTP server {NTP_SERVER} offset is out of range!\n"
-                f"Offset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
-            )
-            send_telegram_alert(message)
+            if not last_offset_out_of_range:
+                message = (
+                    f"⚠️ Alert: NTP server {NTP_SERVER} offset is out of range!\n"
+                    f"Offset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
+                )
+                send_telegram_alert(message)
+            last_offset_out_of_range = True
+        else:
+            if last_offset_out_of_range:
+                message = (
+                    f"✅ Recovery: NTP server {NTP_SERVER} offset is back within range.\n"
+                    f"Offset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
+                )
+                send_telegram_alert(message)
+            last_offset_out_of_range = False
 
         # If the server was previously unreachable and is now reachable, send recovery message
         if server_unreachable:
