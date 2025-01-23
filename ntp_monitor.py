@@ -3,6 +3,8 @@ import time
 import requests
 import os
 import logging
+import socket
+import subprocess
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -32,6 +34,30 @@ def send_telegram_alert(message):
             logging.error(f"Failed to send Telegram alert: {response.text}")
     except Exception as e:
         logging.error(f"Error sending Telegram alert: {e}")
+
+def check_dns_resolution(server):
+    """Check if DNS resolution works for the server and return IP."""
+    try:
+        ip_address = socket.gethostbyname(server)
+        return True, ip_address
+    except socket.error:
+        return False, None
+
+def check_ping(server):
+    """Check if the server can be pinged and return response time."""
+    try:
+        result = subprocess.run(
+            ["ping", "-c", "1", server], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if "time=" in line:
+                    response_time = line.split("time=")[1].split(" ")[0]
+                    return True, response_time
+        return False, None
+    except Exception as e:
+        logging.error(f"Ping check failed: {e}")
+        return False, None
 
 def check_ntp_server():
     """Check the NTP server and report status."""
@@ -68,12 +94,18 @@ def check_ntp_server():
 
     except Exception as e:
         logging.error(f"Error connecting to NTP server {NTP_SERVER}: {e}")
-        
+
         # Only send alert if the server was not previously unreachable
         if not server_unreachable:
-            send_telegram_alert(
-                f"🚨 Alert: Unable to reach NTP server {NTP_SERVER}.\nError: {e}"
+            dns_status, ip_address = check_dns_resolution(NTP_SERVER)
+            ping_status, response_time = check_ping(NTP_SERVER)
+            message = (
+                f"🚨 Alert: Unable to reach NTP server {NTP_SERVER}.\n"
+                f"Error: {e}\n"
+                f"DNS Resolution: {'Successful, IP: ' + ip_address if dns_status else 'Failed'}\n"
+                f"Ping: {'Successful, Response Time: ' + response_time + ' ms' if ping_status else 'Failed'}"
             )
+            send_telegram_alert(message)
             server_unreachable = True
 
 def main():
