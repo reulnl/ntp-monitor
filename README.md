@@ -19,5 +19,6 @@ docker run -d \
   -e TELEGRAM_BOT_TOKEN="your_telegram_bot_token" \
   -e TELEGRAM_CHAT_ID="your_chat_id" \
   -e CHECK_INTERVAL="60" \
+  -e NTP_RETRY_COUNT="1" \
   ghcr.io/reulnl/ntp-monitor:latest
 ```
