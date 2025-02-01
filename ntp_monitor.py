@@ -15,19 +15,15 @@ OFFSET_THRESHOLD = float(os.getenv("OFFSET_THRESHOLD", "0.5"))  # in seconds
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))  # in seconds
+NTP_RETRY_COUNT = int(os.getenv("NTP_RETRY_COUNT", "1"))  # Number of retries
 
-# Track server unreachable and offset out-of-range status
 server_unreachable = False
 last_offset_out_of_range = False
 
 def send_telegram_alert(message):
     """Send alert to Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "disable_notification": False,
-    }
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "disable_notification": False}
     try:
         response = requests.post(url, json=payload)
         if response.status_code != 200:
@@ -36,7 +32,6 @@ def send_telegram_alert(message):
         logging.error(f"Error sending Telegram alert: {e}")
 
 def check_dns_resolution(server):
-    """Check if DNS resolution works for the server and return IP."""
     try:
         ip_address = socket.gethostbyname(server)
         return True, ip_address
@@ -44,11 +39,8 @@ def check_dns_resolution(server):
         return False, None
 
 def check_ping(server):
-    """Check if the server can be pinged and return response time."""
     try:
-        result = subprocess.run(
-            ["ping", "-c", "1", server], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
+        result = subprocess.run(["ping", "-c", "1", server], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result.returncode == 0:
             for line in result.stdout.splitlines():
                 if "time=" in line:
@@ -60,56 +52,44 @@ def check_ping(server):
         return False, None
 
 def check_ntp_server():
-    """Check the NTP server and report status."""
     global server_unreachable, last_offset_out_of_range
+    for attempt in range(NTP_RETRY_COUNT):
+        try:
+            client = ntplib.NTPClient()
+            response = client.request(NTP_SERVER, version=3)
+            offset = response.offset
+            logging.info(f"NTP Server: {NTP_SERVER}, Offset: {offset:.6f} seconds")
 
-    try:
-        client = ntplib.NTPClient()
-        response = client.request(NTP_SERVER, version=3)
-        offset = response.offset
-        logging.info(f"NTP Server: {NTP_SERVER}, Offset: {offset:.6f} seconds")
+            if abs(offset) > OFFSET_THRESHOLD:
+                if not last_offset_out_of_range:
+                    message = f"⚠️ Alert: NTP server {NTP_SERVER} offset is out of range!\nOffset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
+                    send_telegram_alert(message)
+                last_offset_out_of_range = True
+            else:
+                if last_offset_out_of_range:
+                    message = f"✅ Recovery: NTP server {NTP_SERVER} offset is back within range.\nOffset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
+                    send_telegram_alert(message)
+                last_offset_out_of_range = False
 
-        # Check if the offset is within the acceptable range
-        if abs(offset) > OFFSET_THRESHOLD:
-            if not last_offset_out_of_range:
-                message = (
-                    f"⚠️ Alert: NTP server {NTP_SERVER} offset is out of range!\n"
-                    f"Offset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
-                )
-                send_telegram_alert(message)
-            last_offset_out_of_range = True
-        else:
-            if last_offset_out_of_range:
-                message = (
-                    f"✅ Recovery: NTP server {NTP_SERVER} offset is back within range.\n"
-                    f"Offset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
-                )
-                send_telegram_alert(message)
-            last_offset_out_of_range = False
+            if server_unreachable:
+                send_telegram_alert(f"✅ Recovery: NTP server {NTP_SERVER} is back online.")
+                server_unreachable = False
+            return  # Exit function if successful
+        except Exception as e:
+            logging.error(f"Attempt {attempt + 1}/{NTP_RETRY_COUNT}: Error connecting to NTP server {NTP_SERVER}: {e}")
+            time.sleep(2)  # Wait before retrying
 
-        # If the server was previously unreachable and is now reachable, send recovery message
-        if server_unreachable:
-            send_telegram_alert(f"✅ Recovery: NTP server {NTP_SERVER} is back online.")
-            server_unreachable = False
-
-    except Exception as e:
-        logging.error(f"Error connecting to NTP server {NTP_SERVER}: {e}")
-
-        # Only send alert if the server was not previously unreachable
-        if not server_unreachable:
-            dns_status, ip_address = check_dns_resolution(NTP_SERVER)
-            ping_status, response_time = check_ping(NTP_SERVER)
-            message = (
-                f"🚨 Alert: Unable to reach NTP server {NTP_SERVER}.\n"
-                f"Error: {e}\n"
-                f"DNS Resolution: {'Successful, IP: ' + ip_address if dns_status else 'Failed'}\n"
-                f"Ping: {'Successful, Response Time: ' + response_time + ' ms' if ping_status else 'Failed'}"
-            )
-            send_telegram_alert(message)
-            server_unreachable = True
+    # Only mark as unreachable if all attempts fail
+    if not server_unreachable:
+        dns_status, ip_address = check_dns_resolution(NTP_SERVER)
+        ping_status, response_time = check_ping(NTP_SERVER)
+        message = (f"🚨 Alert: Unable to reach NTP server {NTP_SERVER} after {NTP_RETRY_COUNT} attempts.\n"
+                   f"DNS Resolution: {'Successful, IP: ' + ip_address if dns_status else 'Failed'}\n"
+                   f"Ping: {'Successful, Response Time: ' + response_time + ' ms' if ping_status else 'Failed'}")
+        send_telegram_alert(message)
+        server_unreachable = True
 
 def main():
-    """Main loop."""
     while True:
         check_ntp_server()
         time.sleep(CHECK_INTERVAL)
