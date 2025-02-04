@@ -22,3 +22,5 @@ docker run -d \
   -e NTP_RETRY_COUNT="1" \
   ghcr.io/reulnl/ntp-monitor:latest
 ```
+
+Optionally the variable `NTP_MONITOR_LOCATION` can be set to differentiate locations where the NTP Monitor container is running.
