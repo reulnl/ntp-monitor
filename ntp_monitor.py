@@ -65,7 +65,7 @@ def check_ntp_server():
                 # Alert if offset is out-of-range and it was not already flagged
                 if not last_offset_out_of_range:
                     location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
-                    message = (f"[{location}] Alert: NTP offset out-of-range: {offset:.6f} seconds "
+                    message = (f"[{location}] ⚠️ Alert: NTP offset out-of-range: {offset:.6f} seconds "
                                f"(Threshold: {OFFSET_THRESHOLD} seconds)")
                     send_telegram_alert(message)
                     last_offset_out_of_range = True
@@ -73,13 +73,15 @@ def check_ntp_server():
                 # Recovery alert if previously out-of-range
                 if last_offset_out_of_range:
                     location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
-                    message = (f"[{location}] Recovery: NTP offset back within threshold: {offset:.6f} seconds.")
+                    message = (f"[{location}] ✅ Recovery: NTP offset back within threshold: {offset:.6f} seconds.")
                     send_telegram_alert(message)
                     last_offset_out_of_range = False
 
             # If the server was previously unreachable, announce recovery
             if server_unreachable:
-                send_telegram_alert(f"✅ Recovery: NTP server {NTP_SERVER} is back online.")
+                location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
+				message = (f"[{location}] ✅ Recovery: NTP server {NTP_SERVER} is back online.")
+				send_telegram_alert(message)
                 server_unreachable = False
 
             return  # Exit function if successful
@@ -93,7 +95,7 @@ def check_ntp_server():
         ping_status, response_time = check_ping(NTP_SERVER)
         location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
         message = (
-            f"[{location}] Alert: NTP server {NTP_SERVER} unreachable.\n"
+            f"[{location}] 🚨 Alert: NTP server {NTP_SERVER} unreachable.\n"
             f"DNS Resolution: {'Successful, IP: ' + ip_address if dns_status else 'Failed'}\n"
             f"Ping: {'Successful, Response Time: ' + str(response_time) + ' ms' if ping_status else 'Failed'}"
         )
