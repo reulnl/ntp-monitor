@@ -80,8 +80,8 @@ def check_ntp_server():
             # If the server was previously unreachable, announce recovery
             if server_unreachable:
                 location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
-				message = (f"[{location}] ✅ Recovery: NTP server {NTP_SERVER} is back online.")
-				send_telegram_alert(message)
+                message = (f"[{location}] ✅ Recovery: NTP server {NTP_SERVER} is back online.")
+                send_telegram_alert(message)
                 server_unreachable = False
 
             return  # Exit function if successful
