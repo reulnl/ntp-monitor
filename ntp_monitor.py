@@ -62,12 +62,16 @@ def check_ntp_server():
 
             if abs(offset) > OFFSET_THRESHOLD:
                 if not last_offset_out_of_range:
-                    message = f"⚠️ Alert: NTP server {NTP_SERVER} offset is out of range!\nOffset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
+                    location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
+    if location:
+        message = f"[{location}] " + message
                     send_telegram_alert(message)
                 last_offset_out_of_range = True
             else:
                 if last_offset_out_of_range:
-                    message = f"✅ Recovery: NTP server {NTP_SERVER} offset is back within range.\nOffset: {offset:.6f} seconds\nThreshold: {OFFSET_THRESHOLD} seconds"
+                    location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
+    if location:
+        message = f"[{location}] " + message
                     send_telegram_alert(message)
                 last_offset_out_of_range = False
 
@@ -83,7 +87,9 @@ def check_ntp_server():
     if not server_unreachable:
         dns_status, ip_address = check_dns_resolution(NTP_SERVER)
         ping_status, response_time = check_ping(NTP_SERVER)
-        message = (f"🚨 Alert: Unable to reach NTP server {NTP_SERVER} after {NTP_RETRY_COUNT} attempts.\n"
+        location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
+    if location:
+        message = f"[{location}] " + message
                    f"DNS Resolution: {'Successful, IP: ' + ip_address if dns_status else 'Failed'}\n"
                    f"Ping: {'Successful, Response Time: ' + response_time + ' ms' if ping_status else 'Failed'}")
         send_telegram_alert(message)
