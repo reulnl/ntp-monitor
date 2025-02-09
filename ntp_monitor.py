@@ -65,7 +65,7 @@ def check_ntp_server():
                 # Alert if offset is out-of-range and it was not already flagged
                 if not last_offset_out_of_range:
                     location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
-                    message = (f"[{location}] ⚠️ Alert: NTP offset out-of-range: {offset:.6f} seconds "
+                    message = (f"[{location}] ⚠️ Alert: NTP offset for {NTP_SERVER} out-of-range: {offset:.6f} seconds "
                                f"(Threshold: {OFFSET_THRESHOLD} seconds)")
                     send_telegram_alert(message)
                     last_offset_out_of_range = True
@@ -73,7 +73,7 @@ def check_ntp_server():
                 # Recovery alert if previously out-of-range
                 if last_offset_out_of_range:
                     location = os.getenv("NTP_MONITOR_LOCATION", "").strip()
-                    message = (f"[{location}] ✅ Recovery: NTP offset back within threshold: {offset:.6f} seconds.")
+                    message = (f"[{location}] ✅ Recovery: NTP offset for {NTP_SERVER} back within threshold: {offset:.6f} seconds.")
                     send_telegram_alert(message)
                     last_offset_out_of_range = False
 
